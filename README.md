@@ -2,19 +2,20 @@
 
 A map tool for project managers with no GIS background. Look at a site from
 above, mark what you need, and hand it to your GIS or remote sensing analyst
-in the formats they use. It runs on your own computer; nothing to sign up for.
+in the formats they use. It runs on your own Windows computer; nothing to sign up for.
 
 ## Get started (project managers)
 
 1. **Download** [earthfetch-studio.zip](https://github.com/Ethan-M2024/earthfetch-studio/releases/latest/download/earthfetch-studio.zip)
    and unzip it anywhere, like your Desktop or Documents.
-2. **Double-click `Start Studio.bat`** (Windows) or **`Start Studio.command`** (Mac).
+   Right-click the zip and choose **Extract All...** (don't run it from
+   inside the zip).
+2. **Double-click `Start Studio.bat`** in the new folder.
    - The first time, it sets itself up. That takes a few minutes and needs
      about 400 MB of space. After that it starts in seconds.
-   - Mac: if it says the file is from an unidentified developer, right-click
-     it, choose **Open**, then **Open** again. You only do this once.
-   - Windows: if a blue "Windows protected your PC" box appears, click
-     **More info**, then **Run anyway**.
+   - If a blue "Windows protected your PC" box appears, click **More info**,
+     then **Run anyway**. If Windows asks "Do you want to run this file?",
+     click **Run**.
 3. **Your browser opens Studio** at <http://localhost:7860>. If it doesn't,
    copy that address into your browser.
 4. **Keep the black window open** while you work. Close it to stop Studio.

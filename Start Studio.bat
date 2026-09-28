@@ -19,6 +19,18 @@ echo   earthfetch Studio
 echo   -----------------
 echo.
 
+rem Opened straight from inside the zip? Windows runs it from a temp folder
+rem that disappears, so setup would be lost.
+echo "%HERE%" | findstr /i /c:"\AppData\Local\Temp\" >nul
+if %errorlevel%==0 (
+  echo   Please unzip first: right-click earthfetch-studio.zip, choose
+  echo   "Extract All...", then open the new folder and double-click
+  echo   Start Studio.bat there.
+  echo.
+  pause
+  exit /b 1
+)
+
 rem Already running? Just open it.
 netstat -ano | findstr /r /c:":%PORT% .*LISTENING" >nul 2>&1
 if %errorlevel%==0 (

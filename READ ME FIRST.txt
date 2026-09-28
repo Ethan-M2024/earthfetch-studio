@@ -1,15 +1,14 @@
 earthfetch Studio
 =================
 
-1. Double-click "Start Studio.bat" (Windows) or "Start Studio.command" (Mac).
+1. Make sure you unzipped this folder (right-click the zip, "Extract All...").
+   Then double-click "Start Studio.bat".
 
    The first time, it sets itself up. That takes a few minutes and needs
    about 400 MB. After that it starts in seconds.
 
-   Windows: if "Windows protected your PC" appears, click More info,
-   then Run anyway.
-   Mac: if it says "unidentified developer", right-click the file,
-   choose Open, then Open again. Only the first time.
+   If "Windows protected your PC" appears, click More info, then Run anyway.
+   If Windows asks "Do you want to run this file?", click Run.
 
 2. Your browser opens Studio. If it doesn't, go to:
 
