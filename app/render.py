@@ -112,36 +112,59 @@ def _bbox_code(bbox) -> str:
 
 # ------------------------------------------------------------------ products
 
-def _satellite(bbox, opts):
-    start, end = _dates(opts)
+def _nice_date(iso: str) -> str:
+    d = dt.date.fromisoformat(iso[:10])
+    return f"{d:%b} {d.day}, {d.year}"
+
+
+def _s2_day(bbox, date: str):
+    """Every Sentinel-2 tile captured over the box on one day (one pass)."""
+    items = ef.search_sentinel2(bbox, date, date, max_cloud=100, limit=20)
+    if not items:
+        raise StudioError(f"no satellite pass on {_nice_date(date)} here; pick another date")
+    return items
+
+
+def _optical(bbox, opts, bands):
+    """(DataArray or Dataset with the bands, date label, code for the source)."""
     res = _res_for(bbox, 10)
-    rgb = ef.composite(bbox, bands=["B04", "B03", "B02"], start=start, end=end,
-                       res=res, max_scenes=6)
+    date = (opts.get("date") or "").strip()
+    if date:
+        items = _s2_day(bbox, date)
+        da = ef.load_sentinel2(bbox, bands=bands, crs="utm", res=res, items=items)
+        code = (f"items = ef.search_sentinel2({_bbox_code(bbox)}, '{date}', '{date}', "
+                "max_cloud=100)\n"
+                f"img = ef.load_sentinel2({_bbox_code(bbox)}, bands={bands!r}, crs='utm', "
+                "items=items)")
+        cloud = np.mean([i["properties"].get("eo:cloud_cover", 0) for i in items])
+        return da, res, _nice_date(date), f"{_nice_date(date)} ({cloud:.0f}% cloud)", code, "img"
+    start, end = _dates(opts)
+    da = ef.composite(bbox, bands=bands, start=start, end=end, res=res, max_scenes=6)
+    code = (f"img = ef.composite({_bbox_code(bbox)}, bands={bands!r},\n"
+            f"                   start='{start}', end='{end}')")
+    return da, res, None, f"cloud-free blend, {start} to {end}", code, "img"
+
+
+def _satellite(bbox, opts):
+    rgb, res, day, when, code, var = _optical(bbox, opts, ["B04", "B03", "B02"])
     tf, crs = _georef(rgb)
-    code = (f"rgb = ef.composite({_bbox_code(bbox)}, bands=['B04', 'B03', 'B02'],\n"
-            f"                   start='{start}', end='{end}')\n"
-            "ef.preview(rgb, 'satellite.png')")
+    code += f"\nef.preview({var}, 'satellite.png')"
     return Result(_stretch(rgb.values), tf, crs, rgb, code,
-                  "Satellite photo (Sentinel-2)",
-                  meta={"dates": f"{start} to {end}", "pixel_m": res})
+                  f"Satellite photo, {day}" if day else "Satellite photo (Sentinel-2)",
+                  meta={"dates": when, "pixel_m": res})
 
 
 def _ndvi(bbox, opts):
-    start, end = _dates(opts)
-    res = _res_for(bbox, 10)
-    ds = ef.composite(bbox, bands=["B08", "B04"], start=start, end=end,
-                      res=res, max_scenes=6)
+    ds, res, day, when, code, var = _optical(bbox, opts, ["B08", "B04"])
     nd = ef.ndvi(ds)
     nd.attrs = {**ds.attrs, **nd.attrs}
     tf, crs = _georef(ds)
-    code = (f"ds = ef.composite({_bbox_code(bbox)}, bands=['B08', 'B04'],\n"
-            f"                  start='{start}', end='{end}')\n"
-            "ndvi = ef.ndvi(ds)\n"
-            "ef.preview(ndvi, 'ndvi.png', cmap='RdYlGn', vmin=-0.2, vmax=0.9, legend=True)")
+    code += (f"\nndvi = ef.ndvi({var})\n"
+             "ef.preview(ndvi, 'ndvi.png', cmap='RdYlGn', vmin=-0.2, vmax=0.9, legend=True)")
     return Result(_colorize(nd.values, "RdYlGn", -0.2, 0.9), tf, crs, nd, code,
-                  "Plant health (NDVI)",
+                  f"Plant health, {day}" if day else "Plant health (NDVI)",
                   Legend("Plant health (NDVI)", -0.2, 0.9, _ramp("RdYlGn")),
-                  meta={"dates": f"{start} to {end}", "pixel_m": res,
+                  meta={"dates": when, "pixel_m": res,
                         "mean": round(float(np.nanmean(nd.values)), 3)})
 
 
@@ -188,27 +211,35 @@ def _rem(bbox, opts):
                         "pixel_m": res})
 
 
-def _radar(bbox, opts):
+def _s1_window(opts):
+    date = (opts.get("date") or "").strip()
+    if date:
+        return date, date, date
     start, end = _dates(opts)
+    return None, start, end
+
+
+def _radar(bbox, opts):
+    day, start, end = _s1_window(opts)
     res = _res_for(bbox, 10)
     s1 = ef.load_sentinel1(bbox, polarizations=["VV"], start=start, end=end,
-                           method="median", res=res)
+                           method="latest" if day else "median", res=res)
     tf, crs = _georef(s1)
-    code = (f"s1 = ef.load_sentinel1({_bbox_code(bbox)}, start='{start}', end='{end}',\n"
-            "                       method='median')\n"
+    method = "" if day else ",\n                       method='median'"
+    code = (f"s1 = ef.load_sentinel1({_bbox_code(bbox)}, start='{start}', end='{end}'{method})\n"
             "ef.preview(s1.sel(band='VV'), 'radar.png', cmap='gray', vmin=-25, vmax=0,\n"
             "           legend=True)")
     vv = s1.sel(band="VV")
     return Result(_colorize(vv.values, "gray", -25, 0), tf, crs, vv, code,
-                  "Radar (Sentinel-1)",
+                  f"Radar, {_nice_date(day)}" if day else "Radar (Sentinel-1)",
                   Legend("VV backscatter (dB)", -25, 0, _ramp("gray")),
                   meta={"passes": len(s1.attrs.get("dates", [])),
-                        "dates": ", ".join(s1.attrs.get("dates", [])[-3:]),
+                        "dates": ", ".join(_nice_date(d) for d in s1.attrs.get("dates", [])[-3:]),
                         "pixel_m": res})
 
 
 def _water(bbox, opts):
-    start, end = _dates(opts)
+    day, start, end = _s1_window(opts)
     res = _res_for(bbox, 10)
     s1 = ef.load_sentinel1(bbox, polarizations=["VV"], start=start, end=end, res=res)
     w = ef.water_mask(s1)
@@ -220,20 +251,65 @@ def _water(bbox, opts):
     code = (f"s1 = ef.load_sentinel1({_bbox_code(bbox)}, start='{start}', end='{end}')\n"
             "water = ef.water_mask(s1)      # 1 = open water, through cloud")
     frac = float(np.nanmean(vals))
-    return Result(rgba, tf, crs, w, code, "Water (from radar)",
+    seen = s1.attrs.get("datetime", "")[:10]
+    return Result(rgba, tf, crs, w, code,
+                  f"Water, {_nice_date(seen)}" if seen else "Water (from radar)",
                   Legend("Open water", 0, 1, ["#1e88e5"], kind="swatch"),
-                  meta={"date": s1.attrs.get("datetime", "")[:10],
+                  meta={"date": _nice_date(seen) if seen else "",
                         "water_pct": round(100 * frac, 1), "pixel_m": res})
 
 
 def _aerial(bbox, opts):
     res = _res_for(bbox, 1)
-    img = ef.load_naip(bbox, res=res)
+    year = (str(opts.get("date") or "")).strip()[:4]
+    try:
+        img = ef.load_naip(bbox, res=res, year=int(year) if year else None)
+    except ef.TileNotFoundError as exc:
+        if year:
+            raise StudioError(f"no aerial photos from {year} here; pick another year") from exc
+        raise
     tf, crs = _georef(img)
-    code = (f"img = ef.load_naip({_bbox_code(bbox)}, res=1)\n"
+    year_arg = f", year={year}" if year else ""
+    code = (f"img = ef.load_naip({_bbox_code(bbox)}, res=1{year_arg})\n"
             "ef.preview(img, 'aerial.png')")
     return Result(_stretch(img.values, 0.5, 99.5), tf, crs, img, code,
-                  "Aerial photo (USDA NAIP)", meta={"pixel_m": res})
+                  f"Aerial photo, {year}" if year else "Aerial photo (USDA NAIP)",
+                  meta={"year": year or "newest available", "pixel_m": res})
+
+
+# ------------------------------------------------------------ dates
+
+def available_dates(product: str, bbox) -> list[dict]:
+    """The dates a PM can pick for a layer over this box, newest first."""
+    bbox = tuple(bbox)
+    today = dt.date.today()
+    if product in ("satellite", "ndvi"):
+        items = ef.search_sentinel2(bbox, (today - dt.timedelta(days=365)).isoformat(),
+                                    today.isoformat(), max_cloud=60, limit=100)
+        days: dict[str, list[float]] = {}
+        for it in items:
+            days.setdefault(it["properties"]["datetime"][:10], []).append(
+                it["properties"].get("eo:cloud_cover", 0))
+        out = [{"value": d, "cloud": round(float(np.mean(c))),
+                "label": f"{_nice_date(d)} · {float(np.mean(c)):.0f}% cloud"}
+               for d, c in days.items()]
+        return sorted(out, key=lambda x: x["value"], reverse=True)[:60]
+    if product == "aerial":
+        years = sorted({int(it["properties"].get("naip:year") or it["properties"]["datetime"][:4])
+                        for it in ef.search_naip(bbox)}, reverse=True)
+        return [{"value": str(y), "label": str(y)} for y in years]
+    if product in ("radar", "water"):
+        from earthfetch.sentinel1 import acquisition_passes, search_sentinel1
+
+        found = search_sentinel1(bbox, (today - dt.timedelta(days=180)).isoformat(),
+                                 today.isoformat())
+        out = []
+        for group in acquisition_passes(found):
+            p = group[0]["properties"]
+            d = p["datetime"][:10]
+            out.append({"value": d, "label": f"{_nice_date(d)} · {p.get('sat:orbit_state', '')}"})
+        return out[:60]
+    return []
 
 
 PRODUCTS = {

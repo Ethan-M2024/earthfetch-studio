@@ -21,11 +21,19 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import handoff
-from .render import MAX_AREA_KM2, PRODUCTS, StudioError, bbox_area_km2, render
+from . import handoff, network, places
+from .render import (
+    MAX_AREA_KM2,
+    PRODUCTS,
+    StudioError,
+    available_dates,
+    bbox_area_km2,
+    render,
+)
 
 log = logging.getLogger("studio")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+network.configure()   # company certificates and proxy, before any download
 
 STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="earthfetch Studio", docs_url="/api/docs", redoc_url=None)
@@ -151,10 +159,25 @@ def products():
 @app.get("/api/geocode")
 def geocode(q: str = Query(min_length=2, max_length=200)):
     try:
-        a = ef.geocode(q)
-    except ef.EarthfetchError as exc:
+        return {"results": places.search(q)}
+    except places.PlaceError as exc:
         raise HTTPException(404, str(exc)) from exc
-    return {"name": a.name, "bbox": list(a.bbox)}
+
+
+@app.get("/api/dates")
+def dates(product: str, bbox: str = Query(pattern=r"^-?[\d.]+(,-?[\d.]+){3}$")):
+    box = [float(v) for v in bbox.split(",")]
+    try:
+        return {"dates": available_dates(product, box)}
+    except Exception as exc:
+        log.warning("date lookup failed: %s", exc)
+        raise HTTPException(502, "couldn't look up dates right now; try again") from exc
+
+
+@app.get("/api/network")
+def network_check():
+    results = network.check()
+    return {"ok": all(r["ok"] for r in results), "services": results}
 
 
 @app.post("/api/render")

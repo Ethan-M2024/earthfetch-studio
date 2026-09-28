@@ -5,3 +5,4 @@ pillow>=10
 pyshp>=2.3
 pyproj>=3.6
 python-multipart>=0.0.9
+truststore>=0.9

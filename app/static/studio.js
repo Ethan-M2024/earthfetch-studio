@@ -52,6 +52,7 @@
 
   // ------------------------------------------------------------------ map
   const map = L.map("map", { zoomControl: true, worldCopyJump: true }).setView([39.5, -98.5], 4);
+  window.__studioMap = map;
   const esri = (path, attribution, maxZoom = 19) =>
     L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${path}/MapServer/tile/{z}/{y}/{x}`, { maxZoom, attribution });
   const bases = {
