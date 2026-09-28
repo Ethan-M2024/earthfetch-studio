@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>earthfetch Studio</title>
+<meta name="description" content="Any place on Earth to a finished map: satellite imagery, elevation, radar, vegetation, and floodplain maps, with the Python code to reproduce them. Free, no account.">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="/static/studio.css">
+</head>
+<body>
+<div class="app">
+  <aside class="panel" id="panel">
+    <header class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="28" height="28"><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M4 18c5-3 9 3 14 0s7-3 10-1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M7 10c4-2 7 2 11 0s6-2 8-1" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity=".55"/></svg>
+      </div>
+      <div>
+        <h1>earthfetch <span>Studio</span></h1>
+        <p class="tag">Any place on Earth, mapped in seconds. Free data, no account.</p>
+      </div>
+    </header>
+
+    <section class="examples">
+      <div class="step-h small">New here? Try one</div>
+      <div class="chips" id="examples"></div>
+    </section>
+
+    <section class="step">
+      <div class="step-h"><span class="n">1</span> Or pick your own area</div>
+      <form class="search" id="search">
+        <input id="q" type="search" placeholder="Search a place, e.g. Jackson Hole, WY" autocomplete="off" aria-label="Search a place">
+        <button type="submit" aria-label="Search">
+          <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </form>
+      <div class="row">
+        <button class="btn ghost" id="draw" type="button">
+          <svg viewBox="0 0 24 24" width="16" height="16"><rect x="4" y="5" width="16" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2.5"/></svg>
+          Draw a box
+        </button>
+        <button class="btn ghost" id="useview" type="button">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Use map view
+        </button>
+      </div>
+      <p class="area" id="area">No area yet. Search, draw a box, or try an example below.</p>
+    </section>
+
+    <section class="step">
+      <div class="step-h"><span class="n">2</span> Choose a map</div>
+      <div class="products" id="products" role="radiogroup" aria-label="Map type"></div>
+      <div class="opts" id="opts"></div>
+    </section>
+
+    <button class="btn primary big" id="go" type="button" disabled>Make the map</button>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+
+    <section class="result" id="result" hidden>
+      <div class="result-h">
+        <h2 id="r-title"></h2>
+        <span class="time" id="r-time"></span>
+      </div>
+      <dl class="meta" id="r-meta"></dl>
+      <div class="row">
+        <a class="btn ghost" id="dl-tif" download>
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          GeoTIFF
+        </a>
+        <a class="btn ghost" id="dl-png" download>
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          PNG
+        </a>
+        <label class="opacity">Opacity <input type="range" id="opacity" min="0" max="100" value="100"></label>
+      </div>
+      <div class="code">
+        <div class="code-h"><span>Reproduce it in Python</span><button class="copy" id="copy" type="button">Copy</button></div>
+        <pre><code id="r-code"></code></pre>
+        <p class="pip"><code>pip install earthfetch</code></p>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <p>Built by <a href="https://www.linkedin.com/in/ethan-muhlestein-8a54b5191" target="_blank" rel="noopener">Ethan Muhlestein</a>, GIS and data scientist. Powered by the open source <a href="https://github.com/Ethan-M2024/earthfetch" target="_blank" rel="noopener">earthfetch</a> library.</p>
+      <p class="src">Data: USGS 3DEP and NHD, Copernicus, ESA Sentinel-1/2, USDA NAIP, PGC ArcticDEM, OpenStreetMap. Maps are for exploration, not engineering decisions.</p>
+    </footer>
+  </aside>
+
+  <main class="mapwrap">
+    <div id="map" aria-label="Map"></div>
+    <div class="basemaps" role="group" aria-label="Basemap">
+      <button type="button" data-base="imagery" class="on">Imagery</button>
+      <button type="button" data-base="light">Light</button>
+    </div>
+    <div class="legend" id="legend" hidden></div>
+    <div class="drawhint" id="drawhint" hidden>Drag on the map to draw your area. <button type="button" id="cancel-draw">Cancel</button></div>
+    <button class="panel-toggle" id="panel-toggle" type="button" aria-controls="panel">Controls</button>
+  </main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/static/studio.js"></script>
+</body>
+</html>

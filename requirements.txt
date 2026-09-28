@@ -1,0 +1,4 @@
+earthfetch[xarray,plot]==0.9.0
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pillow>=10
