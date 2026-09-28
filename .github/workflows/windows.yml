@@ -16,47 +16,51 @@ jobs:
           git archive --format=zip --prefix=earthfetch-studio/ -o "$env:RUNNER_TEMP\studio.zip" HEAD
           Expand-Archive "$env:RUNNER_TEMP\studio.zip" "$env:USERPROFILE\Desktop\PM Downloads (1)"
           Get-ChildItem "$env:USERPROFILE\Desktop\PM Downloads (1)\earthfetch-studio" | Format-Table Name
-      - name: Double-click Start Studio.bat (first run does setup)
+      # one step: the runner stops background programs when a step ends
+      - name: Double-click Start Studio.bat, make a map, download a package, relaunch
         shell: pwsh
         run: |
           $dir = "$env:USERPROFILE\Desktop\PM Downloads (1)\earthfetch-studio"
+          $log = "$env:RUNNER_TEMP\launcher.log"
           # launch the .bat itself, the way Explorer does on double-click
           $p = Start-Process -FilePath "$dir\Start Studio.bat" -WorkingDirectory $dir -PassThru `
-                 -RedirectStandardOutput "$env:RUNNER_TEMP\launcher.log" -RedirectStandardError "$env:RUNNER_TEMP\launcher.err"
+                 -RedirectStandardOutput $log -RedirectStandardError "$env:RUNNER_TEMP\launcher.err"
           $sw = [Diagnostics.Stopwatch]::StartNew()
+          $ready = $false
           while ($sw.Elapsed.TotalMinutes -lt 15) {
-            try { if ((Invoke-WebRequest http://localhost:7860/api/health -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) { break } } catch {}
-            if ((Test-Path "$env:RUNNER_TEMP\launcher.log") -and (Select-String -Quiet "Setup didn't finish" "$env:RUNNER_TEMP\launcher.log")) { Get-Content "$env:RUNNER_TEMP\launcher.log"; throw "setup failed" }
-            if ($p.HasExited) { Get-Content "$env:RUNNER_TEMP\launcher.log", "$env:RUNNER_TEMP\launcher.err" -ErrorAction SilentlyContinue; throw "launcher exited early" }
+            try { if ((Invoke-WebRequest http://localhost:7860/api/health -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) { $ready = $true; break } } catch {}
+            if ((Test-Path $log) -and (Select-String -Quiet "Setup didn't finish" $log)) { Get-Content $log; throw "setup failed" }
+            if ($p.HasExited) { Get-Content $log; throw "launcher exited early" }
             Start-Sleep 3
           }
-          Write-Host "ready after $([int]$sw.Elapsed.TotalSeconds)s"
-          Get-Content "$env:RUNNER_TEMP\launcher.log"
-          Invoke-RestMethod http://localhost:7860/api/health
-          (Get-ChildItem "$dir\.venv\Scripts\python.exe").FullName
-      - name: The page loads
-        shell: pwsh
-        run: |
+          Get-Content $log
+          if (-not $ready) { throw "server never answered" }
+          Write-Host "== ready after $([int]$sw.Elapsed.TotalSeconds)s"
+
+          Write-Host "== page"
           $html = (Invoke-WebRequest http://localhost:7860/ -UseBasicParsing).Content
           if ($html -notmatch 'Download package for your analyst') { throw "page did not load" }
-          (Invoke-WebRequest http://localhost:7860/static/studio.js -UseBasicParsing).StatusCode
-      - name: Make a map and an analyst package
-        shell: pwsh
-        run: |
+          if ((Invoke-WebRequest http://localhost:7860/static/studio.js -UseBasicParsing).StatusCode -ne 200) { throw "no js" }
+
+          Write-Host "== map"
           $body = '{"product":"terrain","bbox":[-121.75,45.35,-121.65,45.40],"options":{}}'
           $r = Invoke-RestMethod http://localhost:7860/api/render -Method Post -ContentType 'application/json' -Body $body -TimeoutSec 300
           Write-Host "map: $($r.title) in $($r.seconds)s"
+          $body2 = '{"product":"rem","bbox":[-110.875,43.475,-110.835,43.515],"options":{"river":"Snake","resolution":"1m"}}'
+          $r2 = Invoke-RestMethod http://localhost:7860/api/render -Method Post -ContentType 'application/json' -Body $body2 -TimeoutSec 300
+          Write-Host "map: $($r2.title) in $($r2.seconds)s"
+
+          Write-Host "== analyst package"
           $fc = '{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-121.7,45.36],[-121.69,45.36],[-121.69,45.37],[-121.7,45.36]]]},"properties":{"name":"Site","note":"Check slope","request":"analysis"}}]}'
-          $pkg = "{`"features`":$fc,`"project`":{`"name`":`"Windows Test`"},`"layers`":[`"$($r.id)`"]}"
+          $pkg = "{`"features`":$fc,`"project`":{`"name`":`"Windows Test`"},`"layers`":[`"$($r.id)`",`"$($r2.id)`"]}"
           Invoke-WebRequest http://localhost:7860/api/handoff -Method Post -ContentType 'application/json' -Body $pkg -OutFile "$env:RUNNER_TEMP\pkg.zip" -UseBasicParsing
           Expand-Archive "$env:RUNNER_TEMP\pkg.zip" "$env:RUNNER_TEMP\pkg"
           Get-ChildItem -Recurse "$env:RUNNER_TEMP\pkg" | Select-Object -ExpandProperty Name
           if (-not (Test-Path "$env:RUNNER_TEMP\pkg\shapefile\markups_areas.shp")) { throw "no shapefile" }
-          if (-not (Get-ChildItem "$env:RUNNER_TEMP\pkg\layers\*.tif")) { throw "no layer GeoTIFF" }
-      - name: Double-clicking again while running just reopens the page
-        shell: pwsh
-        run: |
-          $dir = "$env:USERPROFILE\Desktop\PM Downloads (1)\earthfetch-studio"
+          if ((Get-ChildItem "$env:RUNNER_TEMP\pkg\layers\*.tif").Count -ne 2) { throw "missing layer GeoTIFFs" }
+
+          Write-Host "== second double-click"
           $out = & "$dir\Start Studio.bat" 2>&1 | Out-String
           Write-Host $out
           if ($out -notmatch 'already running') { throw "second launch did not detect the running server" }
+          Write-Host "== all good"
