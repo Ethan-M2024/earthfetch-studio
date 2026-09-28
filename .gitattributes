@@ -1,0 +1,8 @@
+*.bat text eol=crlf
+*.command text eol=lf
+tests/ export-ignore
+.github/ export-ignore
+requirements-dev.txt export-ignore
+pyproject.toml export-ignore
+.dockerignore export-ignore
+*.txt text eol=crlf

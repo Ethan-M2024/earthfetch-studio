@@ -217,7 +217,7 @@ def readme(project: dict, features: list[dict], layers: list[dict]) -> str:
         "",
         f"Prepared by: {project.get('author') or 'not given'}",
         f"Date:        {today}",
-        "Made with:   earthfetch Studio (https://huggingface.co/spaces/DataDude26/earthfetch-studio)",
+        "Made with:   earthfetch Studio (https://github.com/Ethan-M2024/earthfetch-studio)",
         "",
     ]
     if project.get("message"):

@@ -1,0 +1,26 @@
+earthfetch Studio
+=================
+
+1. Double-click "Start Studio.bat" (Windows) or "Start Studio.command" (Mac).
+
+   The first time, it sets itself up. That takes a few minutes and needs
+   about 400 MB. After that it starts in seconds.
+
+   Windows: if "Windows protected your PC" appears, click More info,
+   then Run anyway.
+   Mac: if it says "unidentified developer", right-click the file,
+   choose Open, then Open again. Only the first time.
+
+2. Your browser opens Studio. If it doesn't, go to:
+
+       http://localhost:7860
+
+3. Keep the black window open while you work. Close it to stop Studio.
+
+Your work is saved in your browser. When you're done, go to step 3 (Send)
+in Studio and download the package for your analyst.
+
+Setup trouble? A work VPN or firewall can block the downloads. Try off VPN
+or ask IT to allow astral.sh and pypi.org, then run the launcher again.
+
+Help and updates: https://github.com/Ethan-M2024/earthfetch-studio
