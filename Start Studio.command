@@ -43,7 +43,7 @@ fi
 
 if [ ! -f "$HERE/.venv/setup-done.txt" ]; then
   echo "  Installing Python and the map libraries..."
-  "$UV" venv "$HERE/.venv" --python 3.11 --quiet || fail
+  "$UV" venv "$HERE/.venv" --python 3.11 --quiet --clear || fail
   "$UV" pip install --python "$PY" -r "$HERE/requirements.txt" --quiet || fail
   echo "  Getting the map engine ready..."
   "$PY" -c "import matplotlib.pyplot, rasterio, earthfetch, app.main" >/dev/null 2>&1

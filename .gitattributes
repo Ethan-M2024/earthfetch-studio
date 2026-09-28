@@ -6,3 +6,5 @@ requirements-dev.txt export-ignore
 pyproject.toml export-ignore
 .dockerignore export-ignore
 *.txt text eol=crlf
+.gitattributes export-ignore
+.gitignore export-ignore

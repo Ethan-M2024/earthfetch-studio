@@ -37,7 +37,7 @@ if not exist "%UV%" (
 
 if not exist "%HERE%.venv\setup-done.txt" (
   echo   Installing Python and the map libraries...
-  "%UV%" venv "%HERE%.venv" --python 3.11 --quiet
+  "%UV%" venv "%HERE%.venv" --python 3.11 --quiet --clear
   if errorlevel 1 goto :setup_failed
   "%UV%" pip install --python "%PY%" -r "%HERE%requirements.txt" --quiet
   if errorlevel 1 goto :setup_failed
