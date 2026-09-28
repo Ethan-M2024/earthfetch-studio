@@ -259,6 +259,15 @@
     renderLayer(state.product, bbox, readOpts(), trimmed);
   });
 
+  // share of the smaller box covered by the other one
+  function overlap(a, b) {
+    const [[s1, w1], [n1, e1]] = a, [[s2, w2], [n2, e2]] = b;
+    const w = Math.max(0, Math.min(e1, e2) - Math.max(w1, w2));
+    const h = Math.max(0, Math.min(n1, n2) - Math.max(s1, s2));
+    const small = Math.min((e1 - w1) * (n1 - s1), (e2 - w2) * (n2 - s2));
+    return small > 0 ? (w * h) / small : 0;
+  }
+
   function addLayer(product, j) {
     const existing = state.layers.find((x) => x.key === j.id);
     if (existing) {
@@ -266,8 +275,17 @@
       existing.visible = true;
       existing.overlay.setOpacity(existing.opacity);
     } else {
+      // remapping the same layer over mostly the same ground replaces it
+      const same = state.layers.find((x) => x.product === product && overlap(x.bounds, j.bounds) > 0.6);
+      if (same) {
+        map.removeLayer(same.overlay);
+        state.layers.splice(state.layers.indexOf(same), 1);
+      }
+      const n = state.layers.filter((x) => x.product === product).length;
+      const time = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       const overlay = L.imageOverlay(j.image, j.bounds, { opacity: 1, interactive: false }).addTo(map);
-      state.layers.unshift({ key: j.id, product, title: byId(product).name, detail: j.title, overlay,
+      state.layers.unshift({ key: j.id, product, title: byId(product).name, bounds: j.bounds,
+        detail: j.title + (n ? ` ${n + 1}` : ""), stamp: `${j.area_km2} km² · ${time}`, overlay,
         visible: true, opacity: 1, legend: j.legend, meta: j.meta, code: j.code });
     }
     labels.bringToFront();
@@ -292,7 +310,7 @@
         <div class="lay-h"><input type="checkbox" ${lay.visible ? "checked" : ""} aria-label="Show ${lay.title}">
           <b>${escapeHtml(lay.detail || lay.title)}</b><button class="x" type="button" aria-label="Remove">×</button></div>
         <p>${escapeHtml(byId(lay.product).explain)}</p>
-        ${meta ? `<div class="lay-meta">${meta}</div>` : ""}
+        <div class="lay-meta">${escapeHtml(lay.stamp || "")}${meta ? " · " + meta : ""}</div>
         <input type="range" min="0" max="100" value="${Math.round(lay.opacity * 100)}" aria-label="See-through">
       </li>`;
     }).join("");
