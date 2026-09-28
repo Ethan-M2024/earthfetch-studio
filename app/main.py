@@ -14,11 +14,12 @@ from pathlib import Path
 
 import earthfetch as ef
 import numpy as np
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from . import handoff
 from .render import MAX_AREA_KM2, PRODUCTS, StudioError, bbox_area_km2, render
 
 log = logging.getLogger("studio")
@@ -96,6 +97,7 @@ def _run(req: RenderRequest) -> dict:
     png = _encode(web, "png")
     entry = {
         "title": res.title,
+        "product": req.product,
         "bounds": bounds,
         "code": "import earthfetch as ef\n\n" + res.code,
         "legend": res.legend.__dict__ if res.legend else None,
@@ -180,6 +182,75 @@ def download_png(key: str):
         raise HTTPException(404, "that map expired; render it again")
     return Response(entry["_png"], media_type="image/png",
                     headers={"Content-Disposition": f'attachment; filename="earthfetch_{key}.png"'})
+
+
+class ExportRequest(BaseModel):
+    features: dict
+    project: dict = Field(default_factory=dict)
+    layers: list[str] = Field(default_factory=list, max_length=20)
+
+
+def _slug(text: str) -> str:
+    keep = "".join(c if c.isalnum() else "_" for c in (text or "markups").lower())
+    return "_".join(filter(None, keep.split("_")))[:40] or "markups"
+
+
+def _attachment(data: bytes, media: str, filename: str) -> Response:
+    return Response(data, media_type=media,
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@app.post("/api/export/{fmt}")
+def export(fmt: str, req: ExportRequest):
+    try:
+        feats = handoff.clean_features(req.features)
+    except handoff.HandoffError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    stem = _slug(req.project.get("name"))
+    if fmt == "geojson":
+        return _attachment(handoff.to_geojson(feats, req.project), "application/geo+json",
+                           f"{stem}.geojson")
+    if fmt == "shapefile":
+        return _attachment(handoff.to_shapefile_zip(feats), "application/zip",
+                           f"{stem}_shapefile.zip")
+    if fmt == "kml":
+        return _attachment(handoff.to_kml(feats, req.project.get("name") or "Markups"),
+                           "application/vnd.google-earth.kml+xml", f"{stem}.kml")
+    if fmt == "csv":
+        return _attachment(handoff.to_csv(feats), "text/csv", f"{stem}_notes.csv")
+    raise HTTPException(404, f"unknown format {fmt!r}")
+
+
+@app.post("/api/handoff")
+def handoff_package(req: ExportRequest):
+    try:
+        feats = handoff.clean_features(req.features)
+    except handoff.HandoffError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    layers, seen = [], set()
+    for key in req.layers:
+        entry = _CACHE.get(key)
+        if not entry or key in seen:
+            continue
+        seen.add(key)
+        layers.append({"title": entry["title"], "file": f"{entry['product']}_{key}.tif",
+                       "meta": entry["meta"], "code": entry["code"], "tif": entry["_tif"]})
+    data = handoff.package(req.project, feats, layers)
+    stem = _slug(req.project.get("name"))
+    return _attachment(data, "application/zip", f"{stem}_for_analyst.zip")
+
+
+@app.post("/api/import")
+async def import_file(file: UploadFile = File(...)):
+    data = await file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(413, "that file is over 20 MB")
+    try:
+        fc = handoff.read_upload(file.filename or "", data)
+        feats = handoff.clean_features(fc)
+    except (handoff.HandoffError, ValueError, KeyError) as exc:
+        raise HTTPException(422, f"couldn't read that file: {exc}") from exc
+    return {"type": "FeatureCollection", "features": feats}
 
 
 @app.get("/")

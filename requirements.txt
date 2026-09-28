@@ -2,3 +2,6 @@ earthfetch[xarray,plot]==0.9.0
 fastapi>=0.110
 uvicorn[standard]>=0.29
 pillow>=10
+pyshp>=2.3
+pyproj>=3.6
+python-multipart>=0.0.9

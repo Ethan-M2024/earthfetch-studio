@@ -122,7 +122,7 @@ def _satellite(bbox, opts):
             f"                   start='{start}', end='{end}')\n"
             "ef.preview(rgb, 'satellite.png')")
     return Result(_stretch(rgb.values), tf, crs, rgb, code,
-                  "Cloud-free Sentinel-2 composite",
+                  "Satellite photo (Sentinel-2)",
                   meta={"dates": f"{start} to {end}", "pixel_m": res})
 
 
@@ -139,8 +139,8 @@ def _ndvi(bbox, opts):
             "ndvi = ef.ndvi(ds)\n"
             "ef.preview(ndvi, 'ndvi.png', cmap='RdYlGn', vmin=-0.2, vmax=0.9, legend=True)")
     return Result(_colorize(nd.values, "RdYlGn", -0.2, 0.9), tf, crs, nd, code,
-                  "Vegetation greenness (NDVI)",
-                  Legend("NDVI (greenness)", -0.2, 0.9, _ramp("RdYlGn")),
+                  "Plant health (NDVI)",
+                  Legend("Plant health (NDVI)", -0.2, 0.9, _ramp("RdYlGn")),
                   meta={"dates": f"{start} to {end}", "pixel_m": res,
                         "mean": round(float(np.nanmean(nd.values)), 3)})
 
@@ -157,7 +157,7 @@ def _terrain(bbox, opts):
             "ef.preview(terr.dem, 'terrain.png', cmap='terrain', shade=terr.hillshade,\n"
             "           legend=True)")
     return Result(_colorize(dem, "terrain", lo, hi, shade=t.hillshade.values), tf,
-                  crs, t.dem, code, "Elevation and hillshade",
+                  crs, t.dem, code, "Elevation",
                   Legend("Elevation (m)", round(lo), round(hi), _ramp("terrain")),
                   meta={"source": t.attrs.get("source"), "pixel_m": res,
                         "min_m": round(float(np.nanmin(dem)), 1),
@@ -180,7 +180,7 @@ def _rem(bbox, opts):
             f"ef.preview(r.rem, 'rem.png', cmap='YlGnBu_r', vmin=0, vmax={vmax:g},\n"
             "           shade=r.hillshade, legend=True)")
     return Result(_colorize(r.rem.values, "YlGnBu_r", 0, vmax, shade=r.hillshade.values),
-                  tf, crs, r.rem, code, f"Floodplain map: {r.attrs.get('river') or 'river'}",
+                  tf, crs, r.rem, code, f"Flood-prone ground: {r.attrs.get('river') or 'river'}",
                   Legend("Height above river (m)", 0, vmax, _ramp("YlGnBu_r")),
                   meta={"river": r.attrs.get("river"),
                         "centerline": r.attrs.get("river_source"),
@@ -200,7 +200,7 @@ def _radar(bbox, opts):
             "           legend=True)")
     vv = s1.sel(band="VV")
     return Result(_colorize(vv.values, "gray", -25, 0), tf, crs, vv, code,
-                  "Sentinel-1 radar (sees through clouds)",
+                  "Radar (Sentinel-1)",
                   Legend("VV backscatter (dB)", -25, 0, _ramp("gray")),
                   meta={"passes": len(s1.attrs.get("dates", [])),
                         "dates": ", ".join(s1.attrs.get("dates", [])[-3:]),
@@ -220,7 +220,7 @@ def _water(bbox, opts):
     code = (f"s1 = ef.load_sentinel1({_bbox_code(bbox)}, start='{start}', end='{end}')\n"
             "water = ef.water_mask(s1)      # 1 = open water, through cloud")
     frac = float(np.nanmean(vals))
-    return Result(rgba, tf, crs, w, code, "Open water from radar",
+    return Result(rgba, tf, crs, w, code, "Water (from radar)",
                   Legend("Open water", 0, 1, ["#1e88e5"], kind="swatch"),
                   meta={"date": s1.attrs.get("datetime", "")[:10],
                         "water_pct": round(100 * frac, 1), "pixel_m": res})
@@ -233,7 +233,7 @@ def _aerial(bbox, opts):
     code = (f"img = ef.load_naip({_bbox_code(bbox)}, res=1)\n"
             "ef.preview(img, 'aerial.png')")
     return Result(_stretch(img.values, 0.5, 99.5), tf, crs, img, code,
-                  "NAIP aerial photo (US)", meta={"pixel_m": res})
+                  "Aerial photo (USDA NAIP)", meta={"pixel_m": res})
 
 
 PRODUCTS = {
