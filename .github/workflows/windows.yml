@@ -26,6 +26,7 @@ jobs:
           $sw = [Diagnostics.Stopwatch]::StartNew()
           while ($sw.Elapsed.TotalMinutes -lt 15) {
             try { if ((Invoke-WebRequest http://localhost:7860/api/health -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) { break } } catch {}
+            if ((Test-Path "$env:RUNNER_TEMP\launcher.log") -and (Select-String -Quiet "Setup didn't finish" "$env:RUNNER_TEMP\launcher.log")) { Get-Content "$env:RUNNER_TEMP\launcher.log"; throw "setup failed" }
             if ($p.HasExited) { Get-Content "$env:RUNNER_TEMP\launcher.log", "$env:RUNNER_TEMP\launcher.err" -ErrorAction SilentlyContinue; throw "launcher exited early" }
             Start-Sleep 3
           }

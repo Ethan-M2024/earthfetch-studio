@@ -7,7 +7,9 @@ import hashlib
 import io
 import json
 import logging
+import os
 import tempfile
+import threading
 import time
 from collections import OrderedDict
 from pathlib import Path
@@ -27,6 +29,30 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s
 
 STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="earthfetch Studio", docs_url="/api/docs", redoc_url=None)
+
+
+@app.on_event("startup")
+def _open_browser():
+    """The Windows launcher sets STUDIO_OPEN_BROWSER to the page address; open
+    it once the server answers, so the PM lands on Studio without copying a
+    URL."""
+    url = os.environ.get("STUDIO_OPEN_BROWSER")
+    if not url:
+        return
+
+    def wait_then_open():
+        import urllib.request
+        import webbrowser
+
+        for _ in range(60):
+            try:
+                with urllib.request.urlopen(f"{url}/api/health", timeout=2):
+                    webbrowser.open(url)
+                    return
+            except OSError:
+                time.sleep(0.5)
+
+    threading.Thread(target=wait_then_open, daemon=True).start()
 
 #: two renders at once; the rest queue (keeps a free CPU Space responsive)
 _slots = asyncio.Semaphore(2)
