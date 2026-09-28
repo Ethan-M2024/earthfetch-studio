@@ -20,11 +20,13 @@ jobs:
         shell: pwsh
         run: |
           $dir = "$env:USERPROFILE\Desktop\PM Downloads (1)\earthfetch-studio"
-          $p = Start-Process cmd.exe -ArgumentList '/c', "`"$dir\Start Studio.bat`" > `"$env:RUNNER_TEMP\launcher.log`" 2>&1" -WorkingDirectory $dir -PassThru -WindowStyle Hidden
+          # launch the .bat itself, the way Explorer does on double-click
+          $p = Start-Process -FilePath "$dir\Start Studio.bat" -WorkingDirectory $dir -PassThru `
+                 -RedirectStandardOutput "$env:RUNNER_TEMP\launcher.log" -RedirectStandardError "$env:RUNNER_TEMP\launcher.err"
           $sw = [Diagnostics.Stopwatch]::StartNew()
           while ($sw.Elapsed.TotalMinutes -lt 15) {
             try { if ((Invoke-WebRequest http://localhost:7860/api/health -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) { break } } catch {}
-            if ($p.HasExited) { Get-Content "$env:RUNNER_TEMP\launcher.log"; throw "launcher exited early" }
+            if ($p.HasExited) { Get-Content "$env:RUNNER_TEMP\launcher.log", "$env:RUNNER_TEMP\launcher.err" -ErrorAction SilentlyContinue; throw "launcher exited early" }
             Start-Sleep 3
           }
           Write-Host "ready after $([int]$sw.Elapsed.TotalSeconds)s"
@@ -54,6 +56,6 @@ jobs:
         shell: pwsh
         run: |
           $dir = "$env:USERPROFILE\Desktop\PM Downloads (1)\earthfetch-studio"
-          $out = cmd /c "`"$dir\Start Studio.bat`"" 2>&1 | Out-String
+          $out = & "$dir\Start Studio.bat" 2>&1 | Out-String
           Write-Host $out
           if ($out -notmatch 'already running') { throw "second launch did not detect the running server" }
